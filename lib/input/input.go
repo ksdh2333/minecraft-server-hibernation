@@ -25,7 +25,6 @@ func GetInput() {
 					readline.PcItem("freeze"),
 					readline.PcItem("exit"),
 				),
-				readline.PcItem("mine"),
 			),
 			FuncFilterInputRune: func(r rune) (rune, bool) {
 				switch r {
@@ -100,14 +99,8 @@ func GetInput() {
 				errco.NewLogln(errco.TYPE_WAR, errco.LVL_0, errco.ERROR_COMMAND_UNKNOWN, "unknown command (start - freeze - exit)")
 			}
 
-		// taget minecraft server
-		case "mine":
-			// check that there is a command for the target
-			if len(lineSplit) < 2 {
-				errco.NewLogln(errco.TYPE_WAR, errco.LVL_0, errco.ERROR_COMMAND_INPUT, "specify mine command")
-				continue
-			}
-
+		// target minecraft server (all commands not starting with "msh")
+		default:
 			// check if server is online
 			if servstats.Stats.Status != errco.SERVER_STATUS_ONLINE {
 				errco.NewLogln(errco.TYPE_ERR, errco.LVL_0, errco.ERROR_SERVER_NOT_ONLINE, "minecraft server is not online (try \"msh start\")")
@@ -115,14 +108,10 @@ func GetInput() {
 			}
 
 			// pass the command to the minecraft server terminal
-			_, logMsh := servctrl.Execute(strings.Join(lineSplit[1:], " "))
+			_, logMsh := servctrl.Execute(strings.Join(lineSplit, " "))
 			if logMsh != nil {
 				logMsh.Log(true)
 			}
-
-		// wrong target
-		default:
-			errco.NewLogln(errco.TYPE_WAR, errco.LVL_0, errco.ERROR_COMMAND_INPUT, "specify the target application by adding \"msh\" or \"mine\" before the command.\nExample to get op: mine op <yourname>\nExample to freeze minecraft: msh freeze")
 		}
 	}
 }
