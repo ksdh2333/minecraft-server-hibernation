@@ -36,6 +36,15 @@ func main() {
 		progmgr.AutoTerminate()
 	}
 
+	// load blacklist configuration if enabled
+	if config.ConfigRuntime.Msh.EnableBlacklist {
+		logMsh = config.LoadBlacklistConfig()
+		if logMsh != nil {
+			logMsh.Log(true)
+			progmgr.AutoTerminate()
+		}
+	}
+
 	// launch msh manager
 	go progmgr.MshMgr()
 	// wait for the initial update check

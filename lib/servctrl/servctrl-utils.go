@@ -21,6 +21,8 @@ import (
 //
 // Players are retrived by (in order): server info, list command, internal connection count.
 //
+// If blacklist is enabled, only list command is used to get the complete player list.
+//
 // Internal connection count is reset if a more reliable method is used.
 //
 // no error is returned: the return integer is always meaningful
@@ -32,6 +34,31 @@ func countPlayerSafe() int {
 
 	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "retrieving player count...")
 
+	// If blacklist is enabled and SuspendAllow is true, only use list command to get complete player list
+	if config.ConfigRuntime.Msh.EnableBlacklist && config.ConfigRuntime.Msh.SuspendAllow {
+		playerList, logMsh := getPlayerListFromListCom()
+		if logMsh.Log(true) == nil {
+			method = "list command (blacklist mode)"
+			playerCount = len(playerList)
+			
+			// If all players are blacklisted, treat as no players for hibernation purposes
+			if areAllPlayersBlacklisted(playerList) {
+				errco.NewLogln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "all %d online players are blacklisted - server can hibernate", playerCount)
+				return 0
+			}
+			
+			errco.NewLogln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "%d online players (non-blacklisted) - method for player count: %s", playerCount, method)
+			return playerCount
+		} else {
+			// If list command fails, fall back to connection count
+			method = "connection count (list command failed)"
+			playerCount = servstats.Stats.ConnCount
+			errco.NewLogln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "%d online players - method for player count: %s", playerCount, method)
+			return playerCount
+		}
+	}
+
+	// Normal player count detection (when blacklist is not enabled)
 	if playerCount, logMsh = getPlayersByServInfo(); logMsh.Log(true) == nil {
 		method = "server info"
 		if playerCount != servstats.Stats.ConnCount {
@@ -188,4 +215,85 @@ func getServInfo() (*model.DataInfo, *errco.MshLog) {
 	}
 
 	return recInfo, nil
+}
+
+// getPlayerListFromListCom returns the list of players using "list" command
+func getPlayerListFromListCom() ([]string, *errco.MshLog) {
+	output, logMsh := Execute("list")
+	if logMsh != nil {
+		return nil, logMsh.AddTrace()
+	}
+
+	playerList, logMsh := parsePlayerList(output)
+	if logMsh != nil {
+		return nil, logMsh.AddTrace()
+	}
+
+	return playerList, nil
+}
+
+// parsePlayerList analyzes the output of the list command to extract player list
+func parsePlayerList(s string) ([]string, *errco.MshLog) {
+	// return if string has unexpected format
+	if !strings.Contains(s, "INFO]:") {
+		return nil, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_SERVER_UNEXP_OUTPUT, "string does not contain \"INFO]:\"")
+	}
+
+	// Check for different formats of list command output
+	var playerNames []string
+	
+	// Format 1: "There are 2 players online: Player1, Player2"
+	if strings.Contains(s, "players online:") {
+		playerListStr := strings.Split(s, "players online:")[1]
+		playerNames = strings.Split(playerListStr, ", ")
+	} else if strings.Contains(s, ", ") {
+		// Format 2: "Player1, Player2" (when no players or different format)
+		// Extract the part after "INFO]: "
+		infoPart := strings.Split(s, "INFO]: ")[1]
+		playerNames = strings.Split(infoPart, ", ")
+	} else {
+		// Format 3: Single player or no players
+		// Extract the part after "INFO]: "
+		infoPart := strings.Split(s, "INFO]: ")[1]
+		infoPart = strings.TrimSpace(infoPart)
+		if infoPart != "" && infoPart != "There are 0 players online." {
+			playerNames = []string{infoPart}
+		} else {
+			playerNames = []string{}
+		}
+	}
+
+	// Clean up player names
+	for i, name := range playerNames {
+		playerNames[i] = strings.TrimSpace(name)
+	}
+
+	return playerNames, nil
+}
+
+// isPlayerInBlacklist checks if a player is in the blacklist
+func isPlayerInBlacklist(playerName string) bool {
+	for _, blacklistedPlayer := range config.BlacklistConfig.Blacklist {
+		if strings.EqualFold(blacklistedPlayer, playerName) {
+			return true
+		}
+	}
+	return false
+}
+
+// areAllPlayersBlacklisted checks if all online players are in the blacklist
+func areAllPlayersBlacklisted(playerList []string) bool {
+	// If no players online, return false (server is already empty)
+	if len(playerList) == 0 {
+		return false
+	}
+	
+	// Check if all players are in the blacklist
+	for _, player := range playerList {
+		if !isPlayerInBlacklist(player) {
+			return false
+		}
+	}
+	
+	return true
 }

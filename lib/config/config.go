@@ -28,6 +28,8 @@ var (
 
 	JavaV string // Javav is the java version on the system. format: "java 16.0.1 2021-04-20"
 
+	BlacklistConfig *model.BlacklistConfig = &model.BlacklistConfig{} // BlacklistConfig contains blacklist configuration
+
 	ServerIcon string = defaultServerIcon // ServerIcon contains the minecraft server icon
 
 	MshHost       string = "0.0.0.0"   // MshHost		is the ip address for clients to connect to msh
@@ -367,5 +369,36 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
 		logMsh.Log(true)
 	}
 
+	return nil
+}
+
+// LoadBlacklistConfig loads blacklist configuration from blacklist-config.json file
+func LoadBlacklistConfig() *errco.MshLog {
+	// check if SuspendAllow is enabled (required for blacklist functionality)
+	if !ConfigRuntime.Msh.SuspendAllow {
+		return errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, "EnableBlacklist requires SuspendAllow to be true")
+	}
+
+	// get working directory
+	cwdPath, err := os.Getwd()
+	if err != nil {
+		return errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, err.Error())
+	}
+
+	// read blacklist config file
+	blacklistConfigFilePath := filepath.Join(cwdPath, "blacklist-config.json")
+	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "reading blacklist config file: \"%s\"", blacklistConfigFilePath)
+	blacklistConfigData, err := os.ReadFile(blacklistConfigFilePath)
+	if err != nil {
+		return errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, err.Error())
+	}
+
+	// load blacklist config data into struct
+	err = json.Unmarshal(blacklistConfigData, BlacklistConfig)
+	if err != nil {
+		return errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, err.Error())
+	}
+
+	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "blacklist config loaded successfully with %d players", len(BlacklistConfig.Blacklist))
 	return nil
 }

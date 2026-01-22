@@ -23,6 +23,7 @@ type Configuration struct {
 		TimeBeforeStoppingEmptyServer int64    `json:"TimeBeforeStoppingEmptyServer"`
 		SuspendAllow                  bool     `json:"SuspendAllow"`   // specify if msh should suspend java server process
 		SuspendRefresh                int      `json:"SuspendRefresh"` // specify if msh should refresh java server process suspension and every how many seconds
+		EnableBlacklist               bool     `json:"EnableBlacklist"` // specify if msh should use blacklist to check players
 		InfoHibernation               string   `json:"InfoHibernation"`
 		InfoStarting                  string   `json:"InfoStarting"`
 		NotifyUpdate                  bool     `json:"NotifyUpdate"`
@@ -143,4 +144,9 @@ type MshInstanceV0 struct {
 type MSWhitelist struct {
 	UUID string `json:"uuid"`
 	Name string `json:"name"`
+}
+
+// struct for blacklist configuration
+type BlacklistConfig struct {
+	Blacklist []string `json:"Blacklist"`
 }
